@@ -23,7 +23,7 @@ export function Header() {
   };
 
   return (
-    <header className="glass sticky top-0 z-40 rounded-none border-x-0 border-t-0">
+    <header className="sticky top-0 z-40 bg-[var(--bg-glass)] backdrop-blur-xl border-b border-[var(--border-glass)] shadow-lg flex-shrink-0">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
         {/* Logo */}
         <motion.div

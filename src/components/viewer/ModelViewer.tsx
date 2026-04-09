@@ -1,4 +1,4 @@
-import { Suspense, useRef, useMemo } from 'react';
+import { Suspense, useRef, useMemo, Component, type ReactNode } from 'react';
 import { Canvas } from '@react-three/fiber';
 import {
   OrbitControls,
@@ -12,6 +12,34 @@ import {
 import * as THREE from 'three';
 import { useEditorStore } from '../../stores/editorStore';
 import { useAppStore } from '../../stores/appStore';
+
+/** Error boundary to catch Three.js / R3F crashes */
+class ViewerErrorBoundary extends Component<
+  { children: ReactNode; onReset: () => void },
+  { hasError: boolean; error: string }
+> {
+  state = { hasError: false, error: '' };
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error: error.message };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="w-full h-full min-h-[400px] flex flex-col items-center justify-center gap-4 glass rounded-[var(--radius)]">
+          <p className="text-[var(--danger)] font-semibold">3D Viewer Error</p>
+          <p className="text-sm text-[var(--text-muted)] max-w-md text-center">{this.state.error}</p>
+          <button
+            onClick={() => { this.setState({ hasError: false, error: '' }); this.props.onReset(); }}
+            className="px-4 py-2 bg-[var(--accent)] text-white rounded-[var(--radius-sm)] cursor-pointer text-sm"
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function LoadingIndicator() {
   const { progress } = useProgress();
@@ -172,9 +200,11 @@ function LoadedModel({ url }: { url: string }) {
 
 export function ModelViewer() {
   const modelUrl = useAppStore((s) => s.modelUrl);
+  const setModelUrl = useAppStore((s) => s.setModelUrl);
   const controlsRef = useRef<any>(null);
 
   return (
+    <ViewerErrorBoundary onReset={() => {}}>
     <div className="w-full h-full min-h-[400px] rounded-[var(--radius)] overflow-hidden relative">
       <Canvas
         shadows
@@ -182,8 +212,7 @@ export function ModelViewer() {
         camera={{ position: [6, 3, 6], fov: 45 }}
         gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.2 }}
       >
-        <color attach="background" args={['transparent']} />
-        <fog attach="fog" args={['#000000', 15, 25]} />
+        <fog attach="fog" args={['#1a1a2e', 20, 35]} />
 
         <ambientLight intensity={0.4} />
         <directionalLight
@@ -223,5 +252,6 @@ export function ModelViewer() {
         <gridHelper args={[20, 40, '#444444', '#222222']} position={[0, -0.01, 0]} />
       </Canvas>
     </div>
+    </ViewerErrorBoundary>
   );
 }

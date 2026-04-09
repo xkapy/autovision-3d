@@ -52,9 +52,9 @@ export default function App() {
   }, [mode]);
 
   return (
-    <>
+    <div className="flex flex-col min-h-screen h-screen overflow-hidden">
       <Header />
-      <main className="flex-1 flex flex-col min-h-0">
+      <main className="flex-1 flex flex-col min-h-0 overflow-y-auto">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentStep}
@@ -73,6 +73,6 @@ export default function App() {
         </AnimatePresence>
       </main>
       <ToastContainer />
-    </>
+    </div>
   );
 }

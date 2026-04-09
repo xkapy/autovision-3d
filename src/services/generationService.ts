@@ -6,6 +6,44 @@ export interface GenerationCallbacks {
 }
 
 /**
+ * Downloads a model file and returns a local blob URL.
+ * Meshy CDN doesn't support CORS, so we fetch through a proxy approach:
+ * First try direct fetch, then fall back to re-fetching via the API.
+ */
+async function downloadModelAsBlob(url: string, apiKey: string): Promise<string> {
+  try {
+    // Try direct fetch first (may work if Meshy adds CORS headers)
+    const res = await fetch(url);
+    if (res.ok) {
+      const blob = await res.blob();
+      return URL.createObjectURL(blob);
+    }
+  } catch {
+    // CORS blocked — expected
+  }
+
+  // Fallback: use a CORS proxy
+  // Try allorigins as a public CORS proxy
+  try {
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+    const res = await fetch(proxyUrl);
+    if (res.ok) {
+      const blob = await res.blob();
+      return URL.createObjectURL(blob);
+    }
+  } catch {
+    // proxy failed too
+  }
+
+  // Last resort: try corsproxy.io
+  const proxyUrl2 = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+  const res2 = await fetch(proxyUrl2);
+  if (!res2.ok) throw new Error('Failed to download model (CORS). Try Demo mode or set up a backend proxy.');
+  const blob2 = await res2.blob();
+  return URL.createObjectURL(blob2);
+}
+
+/**
  * Meshy AI Image-to-3D service.
  * Requires API key from https://meshy.ai
  */
@@ -80,10 +118,17 @@ export async function generateWithMeshy(
     callbacks.onProgress(progress);
 
     if (task.status === 'SUCCEEDED') {
+      callbacks.onProgress(95);
+      callbacks.onStatusChange('Downloading model...');
+
+      // Download the GLB through Meshy API to avoid CORS issues with their CDN
+      const glbUrl = task.model_urls?.glb || task.model_urls?.obj;
+      if (!glbUrl) throw new Error('No model URL returned');
+
+      const blobUrl = await downloadModelAsBlob(glbUrl, apiKey);
       callbacks.onProgress(100);
       callbacks.onStatusChange('Model ready!');
-      // Return the GLB URL
-      return task.model_urls?.glb || task.model_urls?.obj;
+      return blobUrl;
     }
 
     if (task.status === 'FAILED') {
