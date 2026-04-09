@@ -7,40 +7,24 @@ export interface GenerationCallbacks {
 
 /**
  * Downloads a model file and returns a local blob URL.
- * Meshy CDN doesn't support CORS, so we fetch through a proxy approach:
- * First try direct fetch, then fall back to re-fetching via the API.
+ * Meshy CDN doesn't support CORS, so in dev we route through Vite's proxy.
+ * The proxy is configured in vite.config.ts: /meshy-cdn/* → assets.meshy.ai/*
  */
-async function downloadModelAsBlob(url: string, apiKey: string): Promise<string> {
-  try {
-    // Try direct fetch first (may work if Meshy adds CORS headers)
-    const res = await fetch(url);
-    if (res.ok) {
-      const blob = await res.blob();
-      return URL.createObjectURL(blob);
-    }
-  } catch {
-    // CORS blocked — expected
+async function downloadModelAsBlob(url: string): Promise<string> {
+  // Rewrite the Meshy CDN URL to go through our Vite dev proxy
+  // e.g. https://assets.meshy.ai/abc/model.glb → /meshy-cdn/abc/model.glb
+  let fetchUrl = url;
+  if (url.includes('assets.meshy.ai')) {
+    const cdnPath = url.replace(/^https?:\/\/assets\.meshy\.ai/, '');
+    fetchUrl = `/meshy-cdn${cdnPath}`;
   }
 
-  // Fallback: use a CORS proxy
-  // Try allorigins as a public CORS proxy
-  try {
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-    const res = await fetch(proxyUrl);
-    if (res.ok) {
-      const blob = await res.blob();
-      return URL.createObjectURL(blob);
-    }
-  } catch {
-    // proxy failed too
+  const res = await fetch(fetchUrl);
+  if (!res.ok) {
+    throw new Error(`Failed to download model (HTTP ${res.status}). The model URL may have expired.`);
   }
-
-  // Last resort: try corsproxy.io
-  const proxyUrl2 = `https://corsproxy.io/?${encodeURIComponent(url)}`;
-  const res2 = await fetch(proxyUrl2);
-  if (!res2.ok) throw new Error('Failed to download model (CORS). Try Demo mode or set up a backend proxy.');
-  const blob2 = await res2.blob();
-  return URL.createObjectURL(blob2);
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
 }
 
 /**
@@ -125,7 +109,7 @@ export async function generateWithMeshy(
       const glbUrl = task.model_urls?.glb || task.model_urls?.obj;
       if (!glbUrl) throw new Error('No model URL returned');
 
-      const blobUrl = await downloadModelAsBlob(glbUrl, apiKey);
+      const blobUrl = await downloadModelAsBlob(glbUrl);
       callbacks.onProgress(100);
       callbacks.onStatusChange('Model ready!');
       return blobUrl;

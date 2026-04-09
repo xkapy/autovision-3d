@@ -9,4 +9,15 @@ export default defineConfig({
       '@': '/src',
     },
   },
+  server: {
+    proxy: {
+      // Proxy Meshy CDN requests to bypass CORS in development
+      '/meshy-cdn': {
+        target: 'https://assets.meshy.ai',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/meshy-cdn/, ''),
+        secure: true,
+      },
+    },
+  },
 });
